@@ -11,7 +11,9 @@
       "Bash(flutter:*)",
       "Bash(find:*)",
       "Bash(dart analyze:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "mcp__ide__getDiagnostics",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

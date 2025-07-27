@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bluesky/bluesky.dart' as bsky;
 import 'package:xrpc/xrpc.dart';
+import 'package:at_uri/at_uri.dart';
 import 'package:skyivory/providers/auth_provider.dart';
 
 final timelineProvider = StateNotifierProvider.autoDispose<TimelineNotifier, AsyncValue<List<bsky.FeedView>>>((ref) {
@@ -21,6 +22,61 @@ class TimelineNotifier extends StateNotifier<AsyncValue<List<bsky.FeedView>>> {
     } else {
       state = AsyncValue.error('Not authenticated', StackTrace.current);
     }
+  }
+  
+  void updatePostInteraction(String uri, {bool? liked, String? likeUri, bool? reposted, String? repostUri}) {
+    if (!state.hasValue) return;
+    
+    final updatedPosts = _posts.map((feedView) {
+      if (feedView.post.uri.toString() == uri) {
+        // Create a new viewer object with updated state
+        var updatedViewer = feedView.post.viewer;
+        
+        if (liked != null) {
+          if (liked && likeUri != null) {
+            // Convert String to AtUri
+            updatedViewer = updatedViewer.copyWith(like: AtUri.parse(likeUri));
+          } else if (!liked) {
+            updatedViewer = updatedViewer.copyWith(like: null);
+          }
+        }
+        
+        if (reposted != null) {
+          if (reposted && repostUri != null) {
+            // Convert String to AtUri
+            updatedViewer = updatedViewer.copyWith(repost: AtUri.parse(repostUri));
+          } else if (!reposted) {
+            updatedViewer = updatedViewer.copyWith(repost: null);
+          }
+        }
+        
+        // Update counts
+        var likeCount = feedView.post.likeCount ?? 0;
+        var repostCount = feedView.post.repostCount ?? 0;
+        
+        if (liked != null) {
+          likeCount += liked ? 1 : -1;
+        }
+        
+        if (reposted != null) {
+          repostCount += reposted ? 1 : -1;
+        }
+        
+        // Create updated post with new viewer state
+        final updatedPost = feedView.post.copyWith(
+          viewer: updatedViewer,
+          likeCount: likeCount,
+          repostCount: repostCount,
+        );
+        
+        // Return updated FeedView
+        return feedView.copyWith(post: updatedPost);
+      }
+      return feedView;
+    }).toList();
+    
+    _posts = updatedPosts;
+    state = AsyncValue.data(_posts);
   }
   
   Future<void> loadTimeline() async {

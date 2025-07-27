@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:skyivory/providers/timeline_provider.dart';
 import 'package:skyivory/widgets/post_card.dart';
+import 'package:skyivory/screens/compose_screen.dart';
 
 class TimelineScreen extends ConsumerStatefulWidget {
   const TimelineScreen({super.key});
@@ -47,7 +48,11 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
           IconButton(
             icon: const Icon(CupertinoIcons.create),
             onPressed: () {
-              // TODO: Navigate to compose screen
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const ComposeScreen(),
+                ),
+              );
             },
           ),
         ],

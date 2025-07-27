@@ -39,6 +39,7 @@ dependencies:
   bluesky: ^0.16.7
   bluesky_text: ^0.6.3
   atproto_core: ^0.10.6
+  at_uri: ^0.4.0
   
   # State management
   flutter_riverpod: ^2.5.1
@@ -53,6 +54,7 @@ dependencies:
   # UI components
   cached_network_image: ^3.3.1
   flutter_animate: ^4.5.0
+  url_launcher: ^6.2.6
   
   # Date/time formatting
   intl: ^0.19.0
