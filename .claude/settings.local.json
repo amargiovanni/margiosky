@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter create:*)",
+      "Bash(flutter pub:*)",
+      "Bash(mkdir:*)",
+      "Bash(flutter analyze:*)",
+      "WebFetch(domain:pub.dev)",
+      "WebFetch(domain:atprotodart.com)",
+      "WebFetch(domain:dev.to)",
+      "Bash(flutter:*)",
+      "Bash(find:*)",
+      "Bash(dart analyze:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": []
+  }
+}
