@@ -15,14 +15,15 @@ class PostInteractionsService {
   
   PostInteractionsService(this._client);
   
-  Future<void> likePost(String uri, String cid) async {
+  Future<atproto.StrongRef> likePost(String uri, String cid) async {
     if (_client == null) throw Exception('Not authenticated');
     
     try {
-      await _client.feed.like(
+      final response = await _client.feed.like(
         uri: AtUri.parse(uri),
         cid: cid,
       );
+      return response.data;
     } on UnauthorizedException catch (e) {
       throw Exception('Authentication required: ${e.toString()}');
     } on XRPCException catch (e) {
@@ -48,14 +49,15 @@ class PostInteractionsService {
     }
   }
   
-  Future<void> repost(String uri, String cid) async {
+  Future<atproto.StrongRef> repost(String uri, String cid) async {
     if (_client == null) throw Exception('Not authenticated');
     
     try {
-      await _client.feed.repost(
+      final response = await _client.feed.repost(
         uri: AtUri.parse(uri),
         cid: cid,
       );
+      return response.data;
     } on UnauthorizedException catch (e) {
       throw Exception('Authentication required: ${e.toString()}');
     } on XRPCException catch (e) {

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:bluesky/bluesky.dart' as bsky;
+import 'package:bluesky/atproto.dart' as atproto;
+import 'package:at_uri/at_uri.dart';
 import 'package:skyivory/providers/auth_provider.dart';
 import 'package:skyivory/providers/post_interactions_provider.dart';
 
@@ -13,6 +16,12 @@ class ComposeScreen extends ConsumerStatefulWidget {
   final String? replyToAuthor;
   final String? replyToText;
   
+  // Quote post parameters
+  final String? quotePostUri;
+  final String? quotePostCid;
+  final bsky.ActorBasic? quotePostAuthor;
+  final String? quotePostText;
+  
   const ComposeScreen({
     super.key,
     this.replyToUri,
@@ -21,6 +30,10 @@ class ComposeScreen extends ConsumerStatefulWidget {
     this.replyToRootCid,
     this.replyToAuthor,
     this.replyToText,
+    this.quotePostUri,
+    this.quotePostCid,
+    this.quotePostAuthor,
+    this.quotePostText,
   });
 
   @override
@@ -33,6 +46,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   bool _isPosting = false;
   
   bool get _isReply => widget.replyToUri != null;
+  bool get _isQuotePost => widget.quotePostUri != null;
   
   @override
   void initState() {
@@ -63,7 +77,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isReply ? 'Reply' : 'New Post'),
+        title: Text(_isReply ? 'Reply' : _isQuotePost ? 'Quote Post' : 'New Post'),
         leading: TextButton(
           onPressed: _isPosting ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
@@ -78,7 +92,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : Text(
-                    _isReply ? 'Reply' : 'Post',
+                    _isReply ? 'Reply' : _isQuotePost ? 'Quote' : 'Post',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: _canPost() 
@@ -92,6 +106,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       body: Column(
         children: [
           if (_isReply) _buildReplyContext(),
+          if (_isQuotePost) _buildQuotePostContext(),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -120,7 +135,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                           decoration: InputDecoration(
                             hintText: _isReply 
                                 ? 'Tweet your reply'
-                                : 'What\'s happening?',
+                                : _isQuotePost
+                                    ? 'Add a comment'
+                                    : 'What\'s happening?',
                             border: InputBorder.none,
                             counterText: '${_textController.text.length}/300',
                           ),
@@ -179,6 +196,81 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                 Text(
                   widget.replyToText!,
                   style: Theme.of(context).textTheme.bodyMedium,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildQuotePostContext() {
+    if (!_isQuotePost || widget.quotePostText == null || widget.quotePostAuthor == null) {
+      return const SizedBox.shrink();
+    }
+    
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundImage: widget.quotePostAuthor!.avatar != null
+                ? CachedNetworkImageProvider(widget.quotePostAuthor!.avatar!)
+                : null,
+            child: widget.quotePostAuthor!.avatar == null
+                ? Text(
+                    (widget.quotePostAuthor!.displayName?.isNotEmpty == true 
+                        ? widget.quotePostAuthor!.displayName!.substring(0, 1) 
+                        : widget.quotePostAuthor!.handle.substring(0, 1)
+                    ).toUpperCase(),
+                    style: const TextStyle(fontSize: 12),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      widget.quotePostAuthor!.displayName?.isNotEmpty == true 
+                          ? widget.quotePostAuthor!.displayName! 
+                          : widget.quotePostAuthor!.handle,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '@${widget.quotePostAuthor!.handle}',
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.quotePostText!,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontSize: 14,
+                  ),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -264,6 +356,16 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           parentCid: widget.replyToCid!,
           rootUri: widget.replyToRootUri ?? widget.replyToUri!,
           rootCid: widget.replyToRootCid ?? widget.replyToCid!,
+        );
+      } else if (_isQuotePost) {
+        // Create quote post with embedded reference
+        final quoteRef = atproto.StrongRef(
+          uri: AtUri.parse(widget.quotePostUri!),
+          cid: widget.quotePostCid!,
+        );
+        await postService.createPost(
+          text: text,
+          quotePost: quoteRef,
         );
       } else {
         await postService.createPost(text: text);

@@ -325,7 +325,7 @@ class _FollowButton extends ConsumerWidget {
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: isFollowing 
-            ? theme.colorScheme.surfaceVariant
+            ? theme.colorScheme.surfaceContainerHighest
             : theme.colorScheme.primary,
         foregroundColor: isFollowing 
             ? theme.colorScheme.onSurfaceVariant

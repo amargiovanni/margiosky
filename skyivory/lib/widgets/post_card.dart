@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:skyivory/providers/post_interactions_provider.dart';
+import 'package:skyivory/providers/timeline_provider.dart';
 import 'package:skyivory/screens/compose_screen.dart';
 import 'package:skyivory/screens/profile_screen.dart';
 
@@ -494,7 +495,7 @@ class PostCard extends ConsumerWidget {
           count: post.post.repostCount,
           isActive: post.post.viewer.repost != null,
           activeColor: Colors.green,
-          onPressed: () => _repost(context, ref),
+          onPressed: () => _showRepostOptions(context, ref),
         ),
         const SizedBox(width: 32),
         _ActionButton(
@@ -570,13 +571,40 @@ class PostCard extends ConsumerWidget {
       postText = '';
     }
     
+    // Determine root URI and CID for proper thread handling
+    String rootUri;
+    String rootCid;
+    
+    try {
+      if (post.post.record is bsky.PostRecord) {
+        final record = post.post.record as bsky.PostRecord;
+        if (record.reply != null && record.reply!.root != null) {
+          // This is already a reply, use the existing root
+          rootUri = record.reply!.root!.uri.toString();
+          rootCid = record.reply!.root!.cid;
+        } else {
+          // This is the original post, it becomes the root
+          rootUri = post.post.uri.toString();
+          rootCid = post.post.cid;
+        }
+      } else {
+        // Fallback: treat current post as root
+        rootUri = post.post.uri.toString();
+        rootCid = post.post.cid;
+      }
+    } catch (e) {
+      // Fallback: treat current post as root
+      rootUri = post.post.uri.toString();
+      rootCid = post.post.cid;
+    }
+    
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ComposeScreen(
           replyToUri: post.post.uri.toString(),
           replyToCid: post.post.cid,
-          replyToRootUri: post.post.uri.toString(), // TODO: Get actual root URI
-          replyToRootCid: post.post.cid, // TODO: Get actual root CID
+          replyToRootUri: rootUri,
+          replyToRootCid: rootCid,
           replyToAuthor: post.post.author.handle,
           replyToText: postText,
         ),
@@ -591,14 +619,23 @@ class PostCard extends ConsumerWidget {
     try {
       if (isLiked) {
         await postService.unlikePost(post.post.viewer.like!.toString());
+        // Update local state
+        ref.read(timelineProvider.notifier).updatePostInteraction(
+          post.post.uri.toString(),
+          liked: false,
+        );
       } else {
-        await postService.likePost(
+        final likeRef = await postService.likePost(
           post.post.uri.toString(),
           post.post.cid,
         );
+        // Update local state with the returned like URI
+        ref.read(timelineProvider.notifier).updatePostInteraction(
+          post.post.uri.toString(),
+          liked: true,
+          likeUri: likeRef.uri.toString(),
+        );
       }
-      
-      // TODO: Update local state or refresh timeline
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -618,14 +655,23 @@ class PostCard extends ConsumerWidget {
     try {
       if (isReposted) {
         await postService.undoRepost(post.post.viewer.repost!.toString());
+        // Update local state
+        ref.read(timelineProvider.notifier).updatePostInteraction(
+          post.post.uri.toString(),
+          reposted: false,
+        );
       } else {
-        await postService.repost(
+        final repostRef = await postService.repost(
           post.post.uri.toString(),
           post.post.cid,
         );
+        // Update local state with the returned repost URI
+        ref.read(timelineProvider.notifier).updatePostInteraction(
+          post.post.uri.toString(),
+          reposted: true,
+          repostUri: repostRef.uri.toString(),
+        );
       }
-      
-      // TODO: Update local state or refresh timeline
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -653,6 +699,79 @@ class PostCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _showRepostOptions(BuildContext context, WidgetRef ref) {
+    final isReposted = post.post.viewer.repost != null;
+    
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isReposted) ...[
+              ListTile(
+                leading: const Icon(CupertinoIcons.arrow_2_squarepath),
+                title: const Text('Repost'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _repost(context, ref);
+                },
+              ),
+              ListTile(
+                leading: const Icon(CupertinoIcons.quote_bubble),
+                title: const Text('Quote Post'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _quotePost(context);
+                },
+              ),
+            ] else ...[
+              ListTile(
+                leading: const Icon(CupertinoIcons.arrow_2_squarepath, color: Colors.red),
+                title: const Text('Undo Repost', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _repost(context, ref);
+                },
+              ),
+            ],
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('Cancel'),
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _quotePost(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ComposeScreen(
+          quotePostUri: post.post.uri.toString(),
+          quotePostCid: post.post.cid,
+          quotePostAuthor: post.post.author,
+          quotePostText: _getPostText(),
+        ),
+      ),
+    );
+  }
+
+  String _getPostText() {
+    try {
+      if (post.post.record is bsky.PostRecord) {
+        final record = post.post.record as bsky.PostRecord;
+        return record.text;
+      }
+    } catch (e) {
+      // Ignore
+    }
+    return '';
   }
 }
 

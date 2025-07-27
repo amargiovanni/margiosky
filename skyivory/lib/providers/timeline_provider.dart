@@ -51,8 +51,8 @@ class TimelineNotifier extends StateNotifier<AsyncValue<List<bsky.FeedView>>> {
         }
         
         // Update counts
-        var likeCount = feedView.post.likeCount ?? 0;
-        var repostCount = feedView.post.repostCount ?? 0;
+        var likeCount = feedView.post.likeCount;
+        var repostCount = feedView.post.repostCount;
         
         if (liked != null) {
           likeCount += liked ? 1 : -1;
